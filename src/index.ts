@@ -1,61 +1,27 @@
-import express, { Request, Response, Router } from "express";
-import fooBar from 'body-parser'
-import { User } from "./user";
+import express, { Request, Response } from "express";
+import bodyParser from 'body-parser'
+import { UserRepo } from "./user";
+import { ApiRequest, handleDoLoginRequest } from "./controllers";
+import { registerApiRouter } from "./api";
 
-const app = express();
 const port = "3000";
 
-
+const app = express();
+app.use(bodyParser.json());
+app.use((req: Request, resp: Response, next) => {
+  (req as ApiRequest).userRepo = UserRepo;
+  next()
+});
 
 app.get("/", (req: Request, res: Response, next) => {
-  // res.send("Hello World!");
-  // console.log("Response sent");
-  res.header("Content-Type", "application/json");
-  res.json({ a: 1 });
+  res.header("Content-Type", "text/html");
+  res.send('<h1>Index Page</h1');
 });
 
-const apiRoutes = Router();
-apiRoutes.use(fooBar.json());
-apiRoutes.post("/do-login", async (req, resp) => {
-  let credential: { username: string, password: string } = req.body;
+app.post("/do-login", handleDoLoginRequest);
 
-  const user = User.findByUsername(credential.username);
 
-  if (user && user.password == credential.password) {
-
-    resp.json({ success: true, user: user.toJSON(), token: user.generateApiToken() });
-    return
-  }
-
-  resp.json({ success: false, token: null });
-
-});
-
-apiRoutes.get("/my-token", function (req, resp) {
-  resp.json({
-    token: ""
-  })
-})
-
-apiRoutes.get("/secure", function (req, resp) {
-  const token = req.headers.authorization?.toString().replace('Bearer', '').trim() || '';
-  const user = User.findByToken(token);
-  if (user && user.validateToken(token)) {
-
-    resp.json({
-      success: true,
-      data: "secure data"
-    })
-    return;
-  }
-  resp.json({
-    success: false,
-    data: null
-  })
-});
-
-app.use(apiRoutes);
-
+registerApiRouter(app)
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);

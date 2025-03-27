@@ -12,8 +12,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.13",
+    "bcrypt": "^5.1.1",
     "eslint": "^9.23.0",
     "express": "^4.21.2",
     "prettier": "^3.5.3",

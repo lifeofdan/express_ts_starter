@@ -6,48 +6,43 @@
 
 import { generateRawBytes } from "./auth";
 import { createHmac } from 'node:crypto';
+import bcrypt from 'bcrypt'
 
 
 export class User {
-  public id = 100;
-  public username = "foo";
-  public password = "foobar";
-  public email = "something@example.com";
-  public salt = "df12233hf34e34e6"
+  public id: number;
 
-  constructor() { }
-
-  public static findByUsername (name: string): User | null {
-    const index = userTable.usernames[name];
-    if (index !== undefined) {
-      return userTable.users[index];
-    }
-    return null
+  constructor(
+    private _username: string,
+    private _password: string,
+    private _email: string,
+    private _salt: string,
+  ) {
+    this.password = _password;
+    this.id = Date.now();
   }
 
-  public static findByToken (token: string): User | null {
-    const pieces = token.split('.');
-    if (pieces.length !== 3) {
-      return null;
-    }
-
-    if (isNaN(+pieces[0])) {
-      return null;
-    }
-
-    const index = userTable.ids[pieces[0]];
-
-    if (index !== undefined) {
-      const user = userTable.users[index];
-      if (user.id == +pieces[0]) {
-        return user
-      }
-    }
-
-
-    return null
+  get username () {
+    return this._username;
   }
 
+  get password () {
+    return this._password;
+  }
+  set password (pwd: string) {
+    this._password = bcrypt.hashSync(pwd + this._salt, 10);
+  }
+
+  get email () {
+    return this._email;
+  }
+  get salt () {
+    return this._salt;
+  }
+
+  public validatePassword (password: string): boolean {
+    return bcrypt.compareSync(password + this._salt, this._password)
+  }
 
   public generateApiToken (): string {
     const raw = generateRawBytes(25);
@@ -110,11 +105,54 @@ const userTable = {
   users: [] as Array<User>,
   ids: {} as Record<number, number>,
   usernames: {} as Record<string, number>,
+  async byToken (token: string): Promise<User | null> {
+    return new Promise((resolve, _reject) => {
+      // SELECT * FROM users where token = ? LIMIT = 1;
+      const pieces = token.split('.');
+      if (pieces.length !== 3) {
+        return resolve(null);
+      }
+      const index = userTable.ids[+pieces[0]];
+
+      if (index !== undefined) {
+        const user = userTable.users[index];
+        if (user.id == +pieces[0]) {
+          return resolve(user)
+        }
+      }
+      resolve(null);
+    });
+  },
+
+  byUsername (name: string): Promise<User | null> {
+    // SELECT * FROM users where username = ? LIMIT = 1
+    return new Promise((resolve, reject) => {
+      const index = this.usernames[name];
+      if (index !== undefined) {
+        return resolve(this.users[index]);
+      }
+      return resolve(null)
+
+    })
+  }
 };
 
-const defaultUser = new User();
-userTable.users.push(defaultUser);
-userTable.ids[defaultUser.id] = userTable.users.length - 1;
-userTable.usernames[defaultUser.username] = userTable.users.length - 1;
+// we are mocking data
+(() => {
+  const defaultUser = new User("foo", "foobar", "something@example.com", "df12233hf34e34e6");
+  userTable.users.push(defaultUser);
+  userTable.ids[defaultUser.id] = userTable.users.length - 1;
+  userTable.usernames[defaultUser.username] = userTable.users.length - 1;
+})();
 
 
+export const UserRepo = {
+  connection: "the db connection we created when the app started",
+  findByUsername: async function (name: string): Promise<User | null> {
+    return await userTable.byUsername(name)
+  },
+
+  findByToken: async function (token: string): Promise<User | null> {
+    return await userTable.byToken(token)
+  }
+}
